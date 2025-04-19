@@ -1,0 +1,257 @@
+alias: Copy Bulb
+description: Copy one bulb to another with random variations.
+fields:
+  from:
+    name: From
+    description: Bulb settings to copy from.
+    selector:
+      entity:
+        filter:
+          - domain: light
+    example: light.pg1
+    required: true
+  to:
+    name: To
+    description: Bulb settings to copy to.
+    selector:
+      entity:
+        filter:
+          - domain: light
+    example: light.psr1
+    required: true
+  hue_mode:
+    name: (OPTIONAL) Hue Mode
+    description: Method to vary hue. Defaults to none.
+    selector:
+      select:
+        options:
+          - none
+          - complementary
+          - analogous
+          - close
+          - subtle
+          - triadic
+          - tetradic
+          - random
+    example: complementary
+    required: false
+  sat_mode:
+    name: (OPTIONAL) Saturation Mode
+    description: Method to vary saturation. Defaults to none.
+    selector:
+      select:
+        options:
+          - none
+          - desaturate
+          - resaturate
+          - random
+    example: desaturate
+    required: false
+  saturation_range_low:
+    name: (OPTIONAL) Saturation Range Low
+    description: >-
+      When varying saturation, vary by at least this much or if random at least
+      this. Defaults to 30%.
+    selector:
+      number:
+        min: 0
+        max: 100
+        unit_of_measurement: "%"
+    example: 25
+    required: false
+  saturation_range_high:
+    name: (OPTIONAL) Saturation Range High
+    description: >-
+      When varying saturation, vary by at most this much or if random at most
+      this. Defaults to 80%.
+    selector:
+      number:
+        min: 0
+        max: 100
+        unit_of_measurement: "%"
+    example: 25
+    required: false
+  brightness_mode:
+    name: (OPTIONAL) Brightness Mode
+    description: >-
+      Method to vary brightness by. Defaults to none but if varied will make
+      sure brightness is > 20%.
+    selector:
+      select:
+        options:
+          - none
+          - brighter
+          - dimmer
+          - random
+    example: dimmer
+    required: false
+  brightness_range_low:
+    name: (OPTIONAL) Brightness Range Low
+    description: >-
+      When varying brightness, vary by at least this much or if random always
+      above this. Defaults to 30%.
+    selector:
+      number:
+        min: 0
+        max: 100
+        unit_of_measurement: "%"
+    example: 25
+    required: false
+  brightness_range_high:
+    name: (OPTIONAL) Brightness Range High
+    description: >-
+      When varying brightness, vary by at most this much or if random always
+      below this. Defaults to 80%.
+    selector:
+      number:
+        min: 0
+        max: 100
+        unit_of_measurement: "%"
+    example: 25
+    required: false
+  transition:
+    name: (OPTIONAL) Timeout
+    description: How long in seconds to transition the copy. Defaults to 0 seconds.
+    selector:
+      number:
+        min: 0
+        max: 100
+        step: 0.1
+        unit_of_measurement: sec
+    example: 3
+    required: false
+sequence:
+  - if:
+      - condition: template
+        value_template: "{{ states(from) == 'off' }}"
+    then:
+      - data: {}
+        target:
+          entity_id: "{{ to }}"
+        action: light.turn_off
+    else:
+      - variables:
+          src_hs: "{{ state_attr(from, 'hs_color') }}"
+          src_br: "{{ state_attr(from, 'brightness') }}"
+          h_mode: "{{ hue_mode if hue_mode is defined else \"none\" }}"
+          s_mode: "{{ sat_mode if sat_mode is defined else \"none\" }}"
+          b_mode: "{{ brightness_mode if brightness_mode is defined else \"none\" }}"
+          srl: >-
+            {{ saturation_range_low if saturation_range_low is defined else "30"
+            }}
+          srh: >-
+            {{ saturation_range_high if saturation_range_high is defined else
+            "80" }}
+          brl: >-
+            {{ brightness_range_low if brightness_range_low is defined else "30"
+            }}
+          brh: >-
+            {{ brightness_range_high if brightness_range_high is defined else
+            "80" }}
+          dst_br: |-
+            {%- macro b_random_dimmer(b,l,h) -%}
+              {{- [50, (b * (1 - ((range(l,h) | random) / 100)))] | max | round(3) | float -}}
+            {%- endmacro -%}
+
+            {%- macro b_random_brighter(b,l,h) -%}
+              {{- [255, (b + ((255 - b) * ((range(l,h) | random) / 100)))] | min | round(3) | float -}}
+            {%- endmacro -%}
+
+            {%- macro b_random(l, h) -%}
+              {{- [255, [50, (range(l,h) | random) * 2.55] | max] | min | round(3) | float -}}
+            {%- endmacro -%}
+
+            {%- if b_mode == "none" -%}
+              {{- src_br -}}
+            {%- elif b_mode == "brighter" -%}
+              {{- b_random_brighter(src_br, brl, brh) -}}
+            {%- elif b_mode == "dimmer" -%}
+              {{- b_random_dimmer(src_br, brl, brh) -}}
+            {%- elif b_mode == "random" -%}
+              {{- b_random(brl, brh) -}}
+            {%- else -%}
+              {{- src_br -}}
+            {%- endif -%}
+          dst_h: |-
+            {%- macro h_complementary(c) -%}
+              {{- ((c + 180) % 360) | round(3) -}}
+            {%- endmacro -%}
+
+            {%- macro h_random_analogous(c) -%}
+              {{- ((c + ([-30, 30] | random)) % 360) | round(3) -}}
+            {%- endmacro -%}
+
+            {%- macro h_random_analogous_close(c) -%}
+              {{- ((c + ([-15, 15] | random)) % 360) | round(3) -}}
+            {%- endmacro -%}
+
+            {%- macro h_random_analogous_subtle(c) -%}
+              {{- ((c + ([-7.5, 7.5] | random)) % 360) | round(3) -}}
+            {%- endmacro -%}
+
+            {%- macro h_random_triadic(c) -%}
+              {{- ((c + 120 * ([1, 2] | random)) % 360) | round(3) -}}
+            {%- endmacro -%}
+
+            {%- macro h_random_tetradic(c) -%}
+              {{- ((c + 90 * ([1, 2, 3] | random)) % 360) | round(3) -}}
+            {%- endmacro -%}
+
+            {%- macro h_random() -%}
+              {{- (range(0, 360) | random) | round(3) -}}
+            {%- endmacro -%}
+
+            {%- if h_mode == "none" -%}
+              {{- src_hs[0] -}}
+            {%- elif h_mode == "complementary" -%}
+              {{- h_complementary(src_hs[0])|float -}}
+            {%- elif h_mode == "analogous" -%}
+              {{- h_random_analogous(src_hs[0])|float -}}
+            {%- elif h_mode == "close" -%}
+              {{- h_random_analogous_close(src_hs[0])|float -}}
+            {%- elif h_mode == "subtle" -%}
+              {{- h_random_analogous_subtle(src_hs[0])|float -}}
+            {%- elif h_mode == "triadic" -%}
+              {{- h_random_triadic(src_hs[0])|float -}}
+            {%- elif h_mode == "tetradic" -%}
+              {{- h_random_tetradic(src_hs[0])|float -}}
+            {%- elif h_mode == "random" -%}
+              {{- h_random()|float -}}
+            {%- else -%}
+              {{- src_hs[0] -}}
+            {%- endif -%}
+          dst_s: |-
+            {%- macro s_random_desat(c,l,h) -%}
+              {{- [0, (c * (1 - ((range(l,h) | random) / 100)))] | max | round(3) | float -}}
+            {%- endmacro -%}
+
+            {%- macro s_random_resat(c,l,h) -%}
+              {{- [100, (c + ((100 - c) * ((range(l,h) | random) / 100)))] | min | round(3) | float -}}
+            {%- endmacro -%}
+
+            {%- macro s_random(l,h) -%}
+              {{- [100, [0, (range(l,h) | random)] | max] | min | round(3) | float -}}
+            {%- endmacro -%}
+
+            {%- if s_mode == "none" -%}
+              {{- src_hs[1] -}}
+            {%- elif s_mode == "resaturate" -%}
+              {{- s_random_resat(src_hs[1],srl,srh)|float -}}
+            {%- elif s_mode == "desaturate" -%}
+              {{- s_random_desat(src_hs[1],srl,srh)|float -}}
+            {%- elif s_mode == "random" -%}
+              {{- s_random(srl,srh)|float -}}
+            {%- else -%}
+              {{- src_hs[1] -}}
+            {%- endif -%}
+      - data: >-
+          { {%- if transition is defined -%} "transition" : {{ transition }},
+          {%- endif -%} "hs_color" : ({{ dst_h }}, {{ dst_s }}), "brightness" :
+          {{ dst_br }} }
+        target:
+          entity_id: "{{ to }}"
+        action: light.turn_on
+mode: parallel
+icon: mdi:lightbulb-multiple
+max: 30
+max_exceeded: silent
