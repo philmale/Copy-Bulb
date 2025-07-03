@@ -1,9 +1,9 @@
 # Copy-Bulb
 Home Assistant script to copy one bulb to another with random colour and brightness variations.
 
-I wrote this because we have a couple of places that I wanted one or two particular light bulbs to be set to a different (but pleasant) contrast to the other bulbs in the room.
+I wrote this because I have a couple of places that I wanted one or two particular light bulbs to be set to a different (but pleasant) contrast to the other bulbs in the room.
 
-We have two outside lights on a porch, and a third light above the house number plate - no matter what colours and settings the two porch lights are at I wanted the plate light to be a contrast to them.
+I have two outside lights on a porch, and a third light above the house number plate - no matter what colours and settings the two porch lights are at I wanted the plate light to be a contrast to them.
 In another use case there is a room with four ceiling lights and a table lamp, I wanted the table lamp to be the same colour as the ceiling lights but always a slightly brighter and richer colour.
 
 # Install
